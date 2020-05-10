@@ -1,0 +1,78 @@
++class NN()
+	var nn1: \nn1@NN
+	var nn2: \nn2@NN
+	+var activate1: int
+	+var activate2: int
+	+var learningRate: float
+	+var hiddenNum: int
+	*func ctor()
+		do me.nn1 :: #\nn1@NN
+		do me.nn2 :: #\nn2@NN
+	end func
+	;ニューラルネットを可視化する
+	{
+	;数値が伝播する様子を図にする
+	func draw(input_size: int, hidden_size: int, output_size: int, w_ih: [][]float, w_ho: [][]float)
+		const size: float :: 10.0
+		const base: float :: \main@HEIGHT / 2.0 - 100.0
+		for i(1, input_size)
+			var space_i: float :: base * 2.0 / (input_size $ float + 1.0)
+			var color_i: int :: 0xFFFFFFFF
+			do draw2d@circle(size, space_i * i $ float, size, size, color_i)
+			for h(1, hidden_size)
+				var space_h: float :: base * 2.0 / (hidden_size $ float + 1.0)
+				var color_h: int :: 0xFFFFFFFF
+				
+				do draw2d@circle(size + 200.0, space_h * h $ float, size, size, color_h)
+				do draw2d@line(size, space_i * i $ float, size + 200.0, space_h * h $ float, 1.0, 0xFFFFFFFF)
+				for o(1, output_size)
+					var space_o: float :: base * 2.0 / (output_size $ float + 1.0)
+					var color_o: int :: 0xFFFFFFFF
+					do draw2d@circle(size * 2.0 + 200.0 * 2.0, space_o * o $ float, size, size, color_o)
+					do draw2d@line(size + 200.0, space_h * h $ float, size * 2.0 + 200.0 * 2.0, space_o * o $ float, 1.0, 0xFFFFFFFF)
+					
+				end for
+			end for
+		end for
+	end func
+	}
+	
+	+func main()
+		
+		
+		while(wnd@act())
+			for i(0, 1000)
+				var x: float :: lib@rndFloat(0.0, 1.0)
+				var t: float :: lib@sin(x * 2.0 * lib@pi * 3.0) + (x - 0.5) ^ 2.0 * 25.0 - 1.0
+				;:: lib@sin(x * 2.0 * lib@pi) 
+				var y: []float
+				switch(me.hiddenNum)
+				case 1
+					do y :: me.nn1.nn([x], [t], me.activate1, me.learningRate, 1)
+				case 2
+					do y :: me.nn2.nn([x], [t], me.activate1, me.activate2, me.learningRate, 1)
+				end switch
+				
+				;教師データ：黄色
+				do me.graph(x * 1000.0, t * 100.0, 0xFFFFFF00)
+				;出力：赤色
+				do me.graph(x * 1000.0, y[0] * 100.0, 0xFFFF0000)
+				
+			end for
+			
+			do draw@render(60)
+		end while
+	end func
+	
+	
+	+func graph(x: float, y: float, color: int)
+		var x0: float :: \main@WIDTH / 3.0
+		var y0: float :: \main@HEIGHT / 3.0 * 2.0
+		do draw@line(0.0, y0, \main@WIDTH, y0, 0xFFFFFFFF)
+		do draw@line(x0, 0.0, x0, \main@HEIGHT, 0xFFFFFFFF)
+		
+		do draw2d@circle(x + x0, -y + y0, 5.0, 5.0, color)
+		
+	end func
+	
+end class

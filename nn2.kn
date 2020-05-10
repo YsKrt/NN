@@ -1,26 +1,14 @@
 ;隠れ層を2つに！
 +class NN()
 	const input_size: int :: 1
-	const hidden_size_1: int :: 30
-	const hidden_size_2: int :: 30
+	const hidden_size_1: int :: 13
+	const hidden_size_2: int :: 13
 	const output_size: int :: 1
-	const eta: float :: 1.1e-1
-	const train: int :: 100000
-	const b: float :: 0.0
-	;0 sigmoid
-	;1 ReLU
-	;2 tanh
-	;3 step
-	const method1: int :: 1
-	const method2: int :: 0
 	{
 	;ReLUの重みの変化量の上限
 	const clip_hh: float :: 0.05
 	const clip_ih: float :: 0.05
 	}
-	var x_list: list<float>
-	var y_list: list<float>
-	var t_list: list<float>
 	
 	var input: []float
 	var hidden_1: []float
@@ -33,9 +21,6 @@
 	var teacher: []float
 	
 	*func ctor()
-		do me.x_list :: #list<float>
-		do me.y_list :: #list<float>
-		do me.t_list :: #list<float>
 		;入力層と隠れ層の[0]には1
 		;重みの[0]にはバイアスを用意する
 		do me.input :: #[input_size + 1]float
@@ -50,22 +35,12 @@
 		do me.input[0] :: 1.0
 		do me.hidden_1[0] :: 1.0
 		do me.hidden_2[0] :: 1.0
-		;バイアスの代入
-		for h(1, hidden_size_1)
-			do me.weight_ih[0][h] :: b
-		end for
-		for h(1, hidden_size_2)
-			do me.weight_hh[0][h] :: b
-		end for
-		for o(0, output_size - 1)
-			do me.weight_ho[0][o] :: b
-		end for
-		;重みの初期化
+		;重みとバイアスの初期化
 		;全て同じ値を使うと更新してもすべて同じ値になってしまい意味がなくなる！！！
-		for i(1, input_size)
-			for h1(1, hidden_size_1)
+		for i(0, input_size)
+			for h1(0, hidden_size_1)
 				do me.weight_ih[i][h1] :: lib@rndFloat(-1.0, 1.0)
-				for h2(1, hidden_size_2)
+				for h2(0, hidden_size_2)
 					do me.weight_hh[h1][h2] :: lib@rndFloat(-1.0, 1.0)
 					for o(0, output_size - 1)
 						do me.weight_ho[h2][o] :: lib@rndFloat(-1.0, 1.0)
@@ -74,50 +49,19 @@
 			end for
 		end for
 	end func
-	
-	+func main()
-		var X: []float :: #[input_size]float
-		for(0, train)
-			for i(0, input_size - 1)
-				do X[i] :: lib@rndFloat(0.0, 2.0 * lib@pi)
-			end for
-			do me.nn(X, method1, method2, 1)
-		end for
-		for i(0, 630)
-			var x: float :: i $ float / 100.0
-			do me.nn([x], method1, method2, 0)
-			do me.x_list.add(x)
-			do me.y_list.add(me.output[0])
-			do me.t_list.add(me.teacher[0])
-		end for
-		while(wnd@act())
-			do me.x_list.head()
-			do me.y_list.head()
-			do me.t_list.head()
-			while(!me.x_list.term())
-				var x: float :: me.x_list.get()
-				var y: float :: me.y_list.get()
-				var t: float :: me.t_list.get()
-				do me.graph(x * 100.0, t * 100.0, 0xFFFFFF00)
-				do me.graph(x * 100.0, y * 100.0, 0xFFFF0000)
-				
-				do me.x_list.next()
-				do me.y_list.next()
-				do me.t_list.next()
-			end while
-			do draw@render(60)
-		end while
-		;do me.show()
-	end func
-	
-	+func nn(input: []float, flag1: int, flag2: int, trainF: int)
+	;activate
+	;0 sigmoid
+	;1 ReLU
+	;2 tanh
+	;3 step
+	+func nn(input: []float, teacher: []float, activate1: int, activate2: int, learningRate: float, trainF: int): []float
 		;入力
 		for i(1, input_size)
 			do me.input[i] :: input[i - 1]
 		end for
 		;教師データ
 		for o(0, output_size - 1)
-			do me.teacher[o] :: (input[o] <= 5.0 & input[o] >= 3.0) ?(1.0, 0.0)
+			do me.teacher[o] :: teacher[o]
 		end for
 		;入力層から隠れ層1へ
 		for h(1, hidden_size_1)
@@ -125,7 +69,7 @@
 			for i(0, input_size)
 				do hid :+ me.input[i] * me.weight_ih[i][h]
 			end for
-			switch(flag1)
+			switch(activate1)
 			case 0
 				do me.hidden_1[h] :: me.sigmoid(hid)
 			case 1
@@ -142,7 +86,7 @@
 			for h1(0, hidden_size_1)
 				do hid :+ me.hidden_1[h1] * me.weight_hh[h1][h2]
 			end for
-			switch(flag2)
+			switch(activate2)
 			case 0
 				do me.hidden_2[h2] :: me.sigmoid(hid)
 			case 1
@@ -163,24 +107,25 @@
 		end for
 		;重みの更新
 		if(trainF = 1)
-			do me.update_w(flag1, flag2)
+			do me.update_w(activate1, activate2, learningRate)
 		end if
+		ret me.output
 	end func
 	
-	+func update_w(flag1: int, flag2: int)
+	+func update_w(activate1: int, activate2: int, learningRate: float)
 		;二乗誤差の勾配(の一部)
 		var dE: float
 		do dE :: me.d_MSE(me.output, me.teacher)
 		for o(0, output_size - 1)
 			;出力層と隠れ層2の間の重みとバイアスの更新
 			for h2(0, hidden_size_2)
-				var dw_ho: float :: -eta * dE * me.hidden_2[h2]
+				var dw_ho: float :: -learningRate * dE * me.hidden_2[h2]
 				do me.weight_ho[h2][o] :+ dw_ho
 				;隠れ層1と隠れ層2の間の重みとバイアスの更新
 				for h1(0, hidden_size_1)
 					var df2: float
 					var dw_hh: float
-					switch(flag2)
+					switch(activate2)
 					case 0
 						;sigmoid
 						do df2 :: me.d_sigmoid(me.hidden_2[h2])
@@ -194,13 +139,13 @@
 						;step
 						do df2 :: me.hidden_2[h2] > 0.0 ?(me.hidden_2[h2], 0.0)
 					end switch
-					do dw_hh :: -eta * dE * me.weight_ho[h2][o] * (df2 * me.hidden_1[h1])
+					do dw_hh :: -learningRate * dE * me.weight_ho[h2][o] * (df2 * me.hidden_1[h1])
 					do me.weight_hh[h1][h2] :+ dw_hh
 					;隠れ層1と入力層の間の重みとバイアスの更新
 					for i(0, input_size)
 						var dw_ih: float
 						var df1: float
-						switch(flag2)
+						switch(activate1)
 						case 0
 							;sigmoid
 							do df1 :: me.d_sigmoid(me.hidden_1[h1])
@@ -214,7 +159,7 @@
 							;step
 							do df1 :: me.hidden_1[h1] > 0.0 ?(me.hidden_1[h1], 0.0)
 						end switch
-						do dw_ih :: -eta * dE * me.weight_ho[h2][o] * (df2 * me.weight_hh[h1][h2]) * (df1 * me.input[i])
+						do dw_ih :: -learningRate * dE * me.weight_ho[h2][o] * (df2 * me.weight_hh[h1][h2]) * (df1 * me.input[i])
 						do me.weight_ih[i][h1] :+ dw_ih
 					end for
 				end for
@@ -259,16 +204,6 @@
 	
 	+func d_sigmoid(f: float): float
 		ret f * (1.0 - f)
-	end func
-	
-	+func graph(x: float, y: float, color: int)
-		var x0: float :: \main@WIDTH / 3.0
-		var y0: float :: \main@HEIGHT / 3.0 * 2.0
-		do draw@line(0.0, y0, \main@WIDTH, y0, 0xFFFFFFFF)
-		do draw@line(x0, 0.0, x0, \main@HEIGHT, 0xFFFFFFFF)
-		
-		do draw2d@circle(x + x0, -y + y0, 5.0, 5.0, color)
-		
 	end func
 	
 	+func show()
