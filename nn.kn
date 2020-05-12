@@ -1,13 +1,15 @@
 +class NN()
 	var nn1: \nn1@NN
 	var nn2: \nn2@NN
+	var nn3: \nn3@NN
 	+var activate1: int
 	+var activate2: int
 	+var learningRate: float
-	+var hiddenNum: int
+	+var flag: int
 	*func ctor()
 		do me.nn1 :: #\nn1@NN
 		do me.nn2 :: #\nn2@NN
+		do me.nn3 :: #\nn3@NN
 	end func
 	;ニューラルネットを可視化する
 	{
@@ -46,11 +48,14 @@
 				var t: float :: lib@sin(x * 2.0 * lib@pi * 3.0) + (x - 0.5) ^ 2.0 * 25.0 - 1.0
 				;:: lib@sin(x * 2.0 * lib@pi) 
 				var y: []float
-				switch(me.hiddenNum)
+				switch(me.flag)
 				case 1
 					do y :: me.nn1.nn([x], [t], me.activate1, me.learningRate, 1)
 				case 2
 					do y :: me.nn2.nn([x], [t], me.activate1, me.activate2, me.learningRate, 1)
+				case 3
+					do y :: me.nn3.nn([x], [t], me.activate1, 1)
+					;do dbg@print("\{y[0]}\n")
 				end switch
 				
 				;教師データ：黄色

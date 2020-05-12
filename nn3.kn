@@ -1,0 +1,262 @@
+
++class NN()
+	const input_size: int :: 1
+	const hidden_size: int :: 10
+	const output_size: int :: 1
+	var input: []float
+	var hidden: []float
+	var output: []float
+	var weight_ih: [][]float
+	var weight_ho: [][]float
+	
+	var teacher: []float
+	
+	var ga: @GA
+	*func ctor()
+		do me.ga :: #@GA
+		;入力層と隠れ層の[0]には1
+		;重みの[0]にはバイアスを用意する
+		do me.input :: #[input_size + 1]float
+		do me.hidden :: #[hidden_size + 1]float
+		do me.output :: #[output_size]float
+		do me.teacher :: #[output_size]float
+		do me.weight_ih :: #[input_size + 1, hidden_size + 1]float
+		do me.weight_ho :: #[hidden_size + 1, output_size]float
+		;1の出力
+		do me.input[0] :: 1.0
+		do me.hidden[0] :: 1.0
+		;重みの初期化
+		;全て同じ値を使うと更新してもすべて同じ値になってしまい意味がなくなる！！！
+		;バイアスも乱数で初期化
+		for i(0, input_size)
+			for h(0, hidden_size)
+				do me.weight_ih[i][h] :: lib@rndFloat(-1.0, 1.0)
+				for o(0, output_size - 1)
+					do me.weight_ho[h][o] :: lib@rndFloat(-1.0, 1.0)
+				end for
+			end for
+		end for
+		
+	end func
+	;flag
+	;0 sigmoid
+	;1 ReLU
+	;2 tanh
+	;3 step
+	+func nn(input: []float, teacher: []float, activate: int, trainF: int): []float
+		;入力
+		for i(1, input_size)
+			do me.input[i] :: input[i - 1]
+		end for
+		;教師データ
+		for o(0, output_size - 1)
+			do me.teacher[o] :: teacher[o]
+		end for
+		;入力層から隠れ層へ
+		for h(1, hidden_size)
+			var hid: float :: 0.0
+			for i(0, input_size)
+				do hid :+ me.input[i] * me.weight_ih[i][h]
+			end for
+			switch(activate)
+			case 0
+				do me.hidden[h] :: me.sigmoid(hid)
+			case 1
+				do me.hidden[h] :: me.ReLU(hid)
+			case 2
+				do me.hidden[h] :: me.tanh(hid)
+			case 3
+				do me.hidden[h] :: me.step(hid)
+			end switch
+		end for
+		;隠れ層から出力層へ
+		for o(0, output_size - 1)
+			var out: float :: 0.0
+			for h(0, hidden_size)
+				do out :+ me.hidden[h] * me.weight_ho[h][o]
+			end for
+			do me.output[o] :: out
+		end for
+		;重みの更新
+		if(trainF = 1)
+			do me.update_w()
+		end if
+		ret me.output
+	end func
+	
+	+func update_w()
+		var E: float :: me.MSE(me.output, me.teacher)
+		var weightList: []float :: #[(output_size) * (hidden_size + 1) * (input_size + 1)]float
+		for o(0, output_size - 1)
+			for h(0, hidden_size)
+				do weightList[o + h * (output_size)] :: me.weight_ho[h][o]
+				for i(0, input_size)
+					do weightList[o + h * (output_size) + i * (output_size) * (hidden_size + 1)] :: me.weight_ih[i][h]
+				end for
+			end for
+		end for
+		do weightList :: me.ga.ga(weightList, -E)
+		for o(0, output_size - 1)
+			for h(0, hidden_size)
+				do me.weight_ho[h][o] :: weightList[o + h * (output_size)]
+				for i(0, input_size)
+					do me.weight_ih[i][h] :: weightList[o + h * (output_size) + i * (output_size) * (hidden_size + 1)]
+				end for
+			end for
+		end for
+	end func
+	
+	+func MSE(out: []float, tea: []float): float
+		var sum: float
+		for o(0, output_size - 1)
+			do sum :+ (out[o] - tea[o]) ^ 2.0
+		end for
+		ret sum / output_size $ float
+	end func
+	
+	+func d_MSE(out: []float, tea: []float): float
+		var sum: float
+		for o(0, output_size - 1)
+			do sum :+ (out[o] - tea[o])
+		end for
+		ret sum / output_size $ float
+	end func
+	
+	+func tanh(x: float): float
+		ret lib@tanh(x)
+	end func
+	+func d_tanh(f: float): float
+		ret 1.0 - f ^ 2.0
+	end func
+	
+	+func step(x: float): float
+		ret x > 0.0 ?(1.0, 0.0)
+	end func
+	
+	+func ReLU(x: float): float
+		ret x > 0.0 ?(x, 0.0)
+	end func
+	
+	+func sigmoid(x: float): float
+		ret 1.0 / (1.0 + lib@e ^ -x)
+	end func
+	
+	+func d_sigmoid(f: float): float
+		ret f * (1.0 - f)
+	end func
+	
+end class
+
++class GA()
+	const parentSize: int :: 5
+	const mutateP: int :: 10
+	const mutateRange: float :: 1.0e-2
+	const childSize: int :: 15
+	var childList: [][]float
+	var childFitList: []float
+	var parent: [][]float
+	var FIRST: bool
+	var count: int
+	var sendChild: int
+	;1：二点交叉、2：一様交叉
+	const CROSS: int :: 1
+	;1：一か所置換、2：2点置換
+	const MUTATION: int :: 1
+	
+	
+	+func ga(child: []float, childFit: float): []float
+		;初期化
+		if(!me.FIRST)
+			do me.childList :: #[childSize, ^child]float
+			do me.parent :: #[parentSize, ^child]float
+			do me.childFitList :: #[childSize]float
+			do me.FIRST :: true
+		end if
+		;子供の追加
+		if(me.count < childSize)
+			for i(0, ^child - 1)
+				do me.childList[me.count][i] :: child[i]
+			end for
+			do me.childFitList[me.count] :: childFit
+			do me.count :+ 1
+		else
+			;送った子供の適合度を受け取る
+			do me.childFitList[me.sendChild] :+ childFit
+		end if
+		;ソートしてエリート半分選出
+		var childFitSort: []float :: ##me.childFitList
+		do childFitSort.sortDesc()
+		var childSort: [][]float :: #[(childSize - 1) / 2 + 1, ^child]float
+		for i(0, (childSize - 1) / 2)
+			for j(0, childSize - 1)
+				if(childFitSort[i] = me.childFitList[j])
+					do childSort[i] :: ##me.childList[j]
+				end if
+			end for
+		end for
+		;親の選択。エリート半分、、ランダム半分。
+		for i(0, (parentSize - 1) / 2)
+			do me.parent[i] :: ##childSort[i]
+		end for
+		for i((parentSize - 1) / 2, parentSize - 1)
+			do me.parent[i] :: ##me.childList[lib@rnd(0, childSize - 1)]
+		end for
+		;交叉
+		do me.cross(me.childList)
+		;突然変異。
+		do me.mutate(me.childList)
+		do me.sendChild :: lib@rnd(0, childSize - 1)
+		ret me.childList[me.sendChild]
+	end func
+	
+	func mutate(childList: [][]float)
+		for i(0, childSize - 1)
+			if(lib@rnd(1, 100) <= mutateP)
+				switch(MUTATION)
+				case 1
+					;一か所ランダム置換
+					var rndPoint: int :: lib@rnd(0, ^childList[0] - 1)
+					do childList[i][rndPoint] :+ lib@rndFloat(-mutateRange, mutateRange)
+				case 2
+					;二点交叉のランダム突然変異版！！！
+					var point1: int :: lib@rnd(0, ^childList[0] - 1)
+					var point2: int :: lib@rnd(point1, ^childList[0] - 1)
+					for j(point1, point2 - 1)
+						do childList[i][j] :+ lib@rndFloat(-mutateRange, mutateRange)
+					end for
+				end switch
+			end if
+		end for
+	end func
+	
+	func cross(childList: [][]float)
+		;子供の半分を交叉、半分を残す。
+		switch(CROSS)
+		case 1
+			;2点交叉
+			for i(0, (childSize - 1) / 2)
+				var point1: int :: lib@rnd(0, ^childList[0] - 1)
+				var point2: int :: lib@rnd(point1, ^childList[0] - 1)
+				var parent1: int :: lib@rnd(0, parentSize - 1)
+				var parent2: int :: lib@rnd(0, parentSize - 1)
+				for j(0, point1 - 1)
+					do childList[i][j] :: me.parent[parent1][j]
+				end for
+				for j(point1, point2 - 1)
+					do childList[i][j] :: me.parent[parent2][j]
+				end for
+				for j(point2, ^childList[0] - 1)
+					do childList[i][j] :: me.parent[parent1][j]
+				end for
+			end for
+		case 2
+			;一様交叉
+			for i(0, (childSize - 1) / 2)
+				for j(0, ^childList[0] - 1)
+					do childList[i][j] :: me.parent[lib@rnd(0, parentSize - 1)][j]
+				end for
+			end for
+		end switch
+	end func
+	
+end class

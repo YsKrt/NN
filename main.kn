@@ -9,7 +9,7 @@ func main()
 	;2 tanh
 	;3 step
 	var result: []char
-	do result :: wndex@inputBox(null, "隠れ層の数,活性化関数1,〃2,学習率", "Neural Network", "1,0,0,1.0e-3", null)
+	do result :: wndex@inputBox(null, "flag,活性化関数1,〃2,学習率", "Neural Network", "1,0,0,1.0e-3", null)
 	if(result =& null)
 		ret
 	end if
@@ -19,7 +19,7 @@ func main()
 	
 	var data: [][]char :: result.split(",")
 	var existed: bool
-	var hiddenNum: int :: data[0].toInt(&existed)
+	var flag: int :: data[0].toInt(&existed)
 	var activate1: int :: data[1].toInt(&existed)
 	var activate2: int :: data[2].toInt(&existed)
 	var learningRate: float :: data[3].toFloat(&existed)
@@ -27,7 +27,7 @@ func main()
 	do nn.activate1 :: activate1
 	do nn.activate2 :: activate2
 	do nn.learningRate :: learningRate
-	do nn.hiddenNum :: hiddenNum
+	do nn.flag :: flag
 	do nn.main()
 	
 end func
